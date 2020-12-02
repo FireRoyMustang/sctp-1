@@ -1,9 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"flag"
 	"log"
-	"math/rand"
 	"net"
 	"strings"
 	"time"
@@ -19,13 +20,22 @@ func serveClient(conn net.Conn, bufsize int) error {
 			log.Printf("read failed: %v", err)
 			return err
 		}
-		log.Printf("read: %d", n)
-		n, err = conn.Write(buf[:n])
-		if err != nil {
-			log.Printf("write failed: %v", err)
-			return err
-		}
-		log.Printf("write: %d", n)
+
+		log.Printf("header:%v", buf[:32])
+		log.Printf("read: %d bytes:\n\tsinfo_stream %v\n\tsinfo_ssn %v\n"+
+			"\tsinfo_flags %v\n\tsinfo_ppid %v\n\tsinfo_context %v\n\tttl %v\n"+
+			"\tsinfo_tsn %v\n\tsinfo_cumtsn %v\n\tsinfo_assoc_id %v\nData:%s",
+			n, binary.LittleEndian.Uint16(buf[0:]), binary.LittleEndian.Uint16(buf[2:]),
+			binary.LittleEndian.Uint16(buf[4:]), binary.LittleEndian.Uint32(buf[8:]),
+			binary.LittleEndian.Uint32(buf[12:]), binary.LittleEndian.Uint32(buf[16:]),
+			binary.LittleEndian.Uint32(buf[20:]), binary.LittleEndian.Uint32(buf[24:]),
+			binary.LittleEndian.Uint32(buf[28:]), string(buf[32:]))
+		// n, err = conn.Write(buf[:n])
+		// if err != nil {
+		// 	log.Printf("write failed: %v", err)
+		// 	return err
+		// }
+		// log.Printf("write: %d", n)
 	}
 }
 
@@ -34,7 +44,7 @@ func main() {
 	var ip = flag.String("ip", "0.0.0.0", "")
 	var port = flag.Int("port", 0, "")
 	var lport = flag.Int("lport", 0, "")
-	var bufsize = flag.Int("bufsize", 256, "")
+	var bufsize = flag.Int("bufsize", 1024, "")
 	var sndbuf = flag.Int("sndbuf", 0, "")
 	var rcvbuf = flag.Int("rcvbuf", 0, "")
 
@@ -133,15 +143,16 @@ func main() {
 		}
 		log.Printf("SndBufSize: %d, RcvBufSize: %d", *sndbuf, *rcvbuf)
 
-		ppid := 0
+		ppid := 41
+		info := &sctp.SndRcvInfo{
+			Stream: uint16(0),
+			PPID:   uint32(ppid),
+		}
 		for {
-			info := &sctp.SndRcvInfo{
-				Stream: uint16(ppid),
-				PPID:   uint32(ppid),
-			}
-			ppid += 1
+			// ppid += 1
 			conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO)
 			buf := make([]byte, *bufsize)
+			// buf := []byte("hello Baicells\nthis is intel.")
 			n, err := rand.Read(buf)
 			if n != *bufsize {
 				log.Fatalf("failed to generate random string len: %d", *bufsize)
@@ -151,12 +162,12 @@ func main() {
 				log.Fatalf("failed to write: %v", err)
 			}
 			log.Printf("write: len %d", n)
-			n, info, err = conn.SCTPRead(buf)
-			if err != nil {
-				log.Fatalf("failed to read: %v", err)
-			}
-			log.Printf("read: len %d, info: %+v", n, info)
-			time.Sleep(time.Second)
+			// n, info, err = conn.SCTPRead(buf)
+			// if err != nil {
+			// 	log.Fatalf("failed to read: %v", err)
+			// }
+			// log.Printf("read: len %d, info: %+v", n, info)
+			time.Sleep(time.Second * 5)
 		}
 	}
 }
